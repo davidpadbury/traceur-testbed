@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Traceur</title>
+		<style>
+			html, body {
+				margin: 0;
+				padding: 0;
+			}
+
+			body {
+			}
+
+			#container {
+				position: absolute;
+				top: 0; bottom: 0;
+				left: 0; right: 0;
+				display: -webkit-box;
+				-webkit-box-orient: vertical;
+			}
+
+			#toolbar {
+				background-color: #E8E8E8;
+				padding: 5px;
+			}
+
+			#editors {
+				position: relative;
+				-webkit-box-flex: 1;
+			}
+
+			.editor {
+				position: absolute;
+				top: 0;
+				bottom: 0;
+			}
+			#input {
+				left: 0;
+			}
+			#output {
+				right: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="container">
+			<div id="toolbar">
+				<label>
+					Example:
+					<select id="examples">
+						<option></option>
+					</select>
+				</label>
+				<button id="eval">Evaluate</button>
+			</div>
+
+			<div id="editors">
+				<div id="input" class="editor"></div>
+				<div id="output" class="editor"></div>
+			</div>
+		</div>
+
+		<script id="destructuringAssignment" type="text/traceur">
+var [a, [b], c] = ['hello', [', ', 'junk'], 'world'];
+alert(a + b + c); // hello, world
+		</script>			
+		<script id="await" type="text/traceur">
+function deferredWait(timeout) {
+    var d = $.Deferred();
+    
+    window.setTimeout(function() {
+        d.resolve();
+    }, timeout);
+    
+    return d;
+}
+
+function waitOnThings() {
+    alert('Starting');
+    await deferredWait(1000);
+    alert('Finished');
+}
+
+waitOnThings();
+		</script>			
+		
+		<script src="http://code.jquery.com/jquery-latest.js"></script>
+		<script src="/ace/ace.js"></script>
+		<script src="/ace/mode-javascript.js"></script>
+		<script src="http://traceur-compiler.googlecode.com/svn/branches/v0.10/src/traceur.js"></script>
+		<script>
+			(function() {
+				var inputEl = $('#input'),
+					outputEl = $('#output');
+
+				function resize() {
+					var $win = $(window),
+						width = $win.width(),
+						height = $win.height(),
+						editorWidth = width / 2;
+
+					inputEl.css('right', editorWidth);
+					outputEl.css('left', editorWidth);
+				}
+
+				resize();
+
+				$(window).resize(resize);
+			})();
+
+			(function() {
+				var JavaScriptMode = require('ace/mode/javascript').Mode,
+					inputEditor, outputEditor;
+
+				function initializeEditor(id) {
+					var editor = ace.edit(id);
+
+					editor.getSession().setMode(new JavaScriptMode());
+
+					return editor;
+				}
+
+				function compileTraceur(content) {
+					var reporter = new traceur.util.ErrorReporter(),
+						project = new traceur.semantics.symbols.Project(),
+						file = new traceur.syntax.SourceFile('test.js', content);
+
+					project.addFile(file);
+
+					var results = traceur.codegeneration.Compiler.compile(reporter, project);
+
+					if (reporter.hadError()) {
+						return; 
+					}
+
+					var compiledContent = results.get(file),
+						result = traceur.codegeneration.ParseTreeWriter.write(compiledContent, false);
+
+					return result;
+				}
+
+				inputEditor = initializeEditor('input');
+				outputEditor = initializeEditor('output');
+
+				inputEditor.getSession().on('change', function() {
+					var input = inputEditor.getSession().getValue(),
+						compiled = compileTraceur(input);
+
+					if (compiled) {
+						outputEditor.getSession().setValue(compiled);
+					}
+				});
+
+				$('#examples').change(function() {
+					var val = $(this).val(),
+						script = val ? $('script#' + val) : null;
+
+					inputEditor.getSession().setValue(script ? script.html() : '');
+				});
+
+				$('#eval').click(function() {
+					var script = outputEditor.getSession().getValue();
+
+					eval(script);
+				});
+			})();
+
+			(function() {
+				var examples = $('#examples');
+
+				function worditize(identifier) {
+					var ident = identifier.charAt(0).toUpperCase() + identifier.slice(1);
+					return ident.replace(/([A-Z])/g, ' $1');
+				}
+
+				$("script[type='text/traceur']").each(function(index, script) {
+					$('<option>')
+						.text(worditize(script.id))
+						.attr('value', script.id)
+						.appendTo(examples);
+				});
+
+			})();
+		</script>
+	</body>
+</html>
